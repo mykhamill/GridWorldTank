@@ -20,7 +20,8 @@ namespace GridWorld
             myWorldState = (PlayerWorldState)igrid;
             Debug.WriteLine(myWorldState);
 
-            return null; // Return the command “Do nothing at all!”
+            return new Command(Command.Move.Right, false);
+            //return null; // Return the command “Do nothing at all!”
         }
 
         public GridSquare GetMyLocation(PlayerWorldState state)
