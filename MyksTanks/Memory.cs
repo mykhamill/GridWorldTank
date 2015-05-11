@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Drawing;
+using System.Collections;
 
 namespace GridWorld
 {
-    class Memory
+    class Memory : IEnumerable<GridSquare>
     {
         Dictionary<Point, GridSquare> mem;
         int maxWidth;
@@ -19,9 +20,10 @@ namespace GridWorld
             maxHeight = 0;
         }
 
-        public String convertContent(GridSquare.ContentType ct)
+        public String convertContent(GridSquare ct)
         {
-            switch(ct)
+            if (ct == null) return " ";
+            switch(ct.Contents)
             {
                 case GridSquare.ContentType.DestroyedTank: return "#";
                 case GridSquare.ContentType.Empty: return ".";
@@ -57,7 +59,7 @@ namespace GridWorld
                     var p = new Point(x, y);
                     if (mem.ContainsKey(p))
                     {
-                        result[result.ToArray().Length-1] += convertContent(mem.SingleOrDefault(kv => kv.Key == p).Value.Contents);
+                        result[result.ToArray().Length - 1] += convertContent(mem.SingleOrDefault(kv => kv.Key == p).Value);
                     }
                     else
                     {
@@ -66,6 +68,98 @@ namespace GridWorld
                 }
             }
             return result.Aggregate((a, b) => b + "\r\n" + a);
+        }
+
+        public IEnumerator<GridSquare> GetEnumerator()
+        {
+            return mem.Select(v => v.Value).GetEnumerator(); 
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return mem.Select(v => v.Value).GetEnumerator();
+        }
+
+        public List<String> surrounding(GridSquare sq)
+        {
+            List<String> result = new List<String>();
+            if (sq.X == 0)
+            {
+                if (sq.Y == 0)
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y + 1).Value));
+                }
+                else if (sq.Y < maxHeight - 1)
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y + 1).Value));
+                }
+                else
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y).Value));
+                }
+            }
+            else if (sq.X < maxWidth - 1)
+            {
+                if (sq.Y == 0)
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y + 1).Value));
+                }
+                else if (sq.Y < maxHeight - 1)
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y + 1).Value));
+                }
+                else
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X + 1 && kv.Key.Y == sq.Y).Value));
+                }
+            }
+            else
+            {
+                if (sq.Y == 0)
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y + 1).Value));
+                }
+                else if (sq.Y < maxHeight - 1)
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y + 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y + 1).Value));
+                }
+                else
+                {
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y - 1).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X - 1 && kv.Key.Y == sq.Y).Value));
+                    result.Add(convertContent(mem.SingleOrDefault(kv => kv.Key.X == sq.X && kv.Key.Y == sq.Y - 1).Value));
+                }
+            } 
+            return result;
         }
     }
 }
