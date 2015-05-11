@@ -42,7 +42,10 @@ namespace GridWorld
             lastCommand = command;
             findEnemies(myWorldState);
             findEnemiesInMemory();
-            edgeOfSeen();
+            foreach (var edgeSquare in memory.edgeOfSeen())
+            {
+                Debug.WriteLine(String.Format("edge of Seen: {0} distance {1}", edgeSquare, memory.distance(mloc(), edgeSquare)));
+            }
             Trace.WriteLine(String.Format("Move {0}, Fire? {1}", Command.Move.Right, false ? "Yes" : "No"));
             return command;
         }
@@ -51,7 +54,7 @@ namespace GridWorld
         {
             if (myWorldState != null)
             {
-                Debug.WriteLine(myWorldState.MyGridSquare);
+                //Debug.WriteLine(myWorldState.MyGridSquare);
                 return myWorldState.MyGridSquare;
             }
             return null;
@@ -75,16 +78,6 @@ namespace GridWorld
                 Debug.WriteLine(String.Format("Remembered Player: {0} at {1}", square.Player, square));
             }
             return rememberedEnemySquares; 
-        }
-
-        public List<GridSquare> edgeOfSeen()
-        {
-            var seenSquares = memory.Where(square => square.Contents == GridSquare.ContentType.Empty && memory.surrounding(square).Any(s => s == " ")).ToList();
-            foreach (var square in seenSquares)
-            {
-                Debug.WriteLine(String.Format("edge of Seen: {0}", square));
-            }
-            return seenSquares;
         }
     }
 }
