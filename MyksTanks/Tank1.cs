@@ -14,14 +14,22 @@ namespace GridWorld
         Command lastCommand;
         GridSquare.ContentType lastDirection;
         PlayerWorldState.Facing travelDirection;        
-        
+        Dictionary<String, Command> movements = new Dictionary<string, Command>();
+        Dictionary<String, GridSquare> compassPoints = new Dictionary<string, GridSquare>();
+        Queue<Command> commandQueue = new Queue<Command>();
+
         public mhamill() : base()
         {
             this.Name = "Tank1";
             memory = new Memory();
-            lastCommand = null;
+            lastCommand = new Command(Command.Move.Right, true);
             lastDirection = GridSquare.ContentType.Empty;
             travelDirection = PlayerWorldState.Facing.Right;
+            movements.Add("n", new Command(Command.Move.Up, true));
+            movements.Add("e", new Command(Command.Move.Left, true));
+            movements.Add("s", new Command(Command.Move.Down, true));
+            movements.Add("w", new Command(Command.Move.Right, true));
+            
         }
 
         public override ICommand GetTurnCommands(IPlayerWorldState igrid)
@@ -30,7 +38,8 @@ namespace GridWorld
             memory.update(myWorldState);
             Debug.WriteLine(memory);
             Debug.WriteLine(myWorldState);
-            Command command = followRightwall(myWorldState);
+            commandQueue.Enqueue(followRightwall(myWorldState));
+            Command command = (commandQueue.Count == 0) ? followRightwall(myWorldState) : commandQueue.Dequeue();
             lastDirection = mloc().Contents;
             lastCommand = command;
             findEnemies(myWorldState);
@@ -45,124 +54,142 @@ namespace GridWorld
 
         public Command followRightwall(PlayerWorldState state)
         {
-            Command result = null;
-            if (lastCommand == null)
-            {
-                lastCommand = new Command(Command.Move.RotateRight, true);
-            }
-            GridSquare front = null;
-            Command forward = null;
-            GridSquare rightSide = null;
-            GridSquare leftSide = null;
             GridSquare loc = mloc();
-            switch (travelDirection) {
-                case PlayerWorldState.Facing.Right:
-                    front = borderWall(loc, true, 1, state.GridWidthInSquares);
-                    leftSide = borderWall(loc, false, 1, state.GridHeightInSquares);
-                    rightSide = borderWall(loc, false, -1, state.GridHeightInSquares);
-                    forward = new Command(Command.Move.Right, true);
-                    break;
-                case PlayerWorldState.Facing.Down:
-                    front = borderWall(loc, false, -1, state.GridHeightInSquares);
-                    leftSide = borderWall(loc, true, 1, state.GridWidthInSquares);
-                    rightSide = borderWall(loc, true, -1, state.GridWidthInSquares);
-                    forward = new Command(Command.Move.Down, true);
-                    break;
-                case PlayerWorldState.Facing.Left:
-                    front = borderWall(loc, true, -1, state.GridWidthInSquares);
-                    leftSide = borderWall(loc, false, -1, state.GridHeightInSquares);
-                    rightSide = borderWall(loc, false, 1, state.GridHeightInSquares);
-                    forward = new Command(Command.Move.Left, true);
-                    break;
-                case PlayerWorldState.Facing.Up:
-                    front = borderWall(loc, false, 1, state.GridHeightInSquares);
-                    leftSide = borderWall(loc, true, -1, state.GridWidthInSquares);
-                    rightSide = borderWall(loc, true, 1, state.GridWidthInSquares);
-                    forward = new Command(Command.Move.Up, true);
-                    break;
+            compassPoints.Clear();
+            compassPoints.Add("n", borderWall(loc, 0, 1, state));
+            compassPoints.Add("ne", borderWall(loc, -1, 1, state));
+            compassPoints.Add("e", borderWall(loc, -1, 0, state));
+            compassPoints.Add("se", borderWall(loc, -1, -1, state));
+            compassPoints.Add("s", borderWall(loc, 0, -1, state));
+            compassPoints.Add("w", borderWall(loc, 1, 0, state));
+            compassPoints.Add("sw", borderWall(loc, 1, -1, state));
+            compassPoints.Add("nw", borderWall(loc, 1, 1, state));
+
+            if (compassPoints.Any(kv => kv.Value == null))
+            {
+                return rotateGun360();
             }
 
-            if (leftSide == null)
+            String compassValue = compassPoints.Select((kv, i) => kv.Value.Contents == GridSquare.ContentType.Empty ? "0" : "1").Aggregate((a, b) => b + a);
+            //                      next command
+            //                           move up             move left             move down             move right
+            // lastcommand move up
+            // priority                4                   2                     1                     3
+            //     ne  n  nw             x 0 x               x 1 x                 x 1 x                 x x x         
+            //     e   ^   w             x ^ x               0 ^ 1                 1 ^ 1                 x ^ 0
+            //     se  s  sw             x x x               x x x                 x x x                 x x 1
+            //           
+            // lastcommand move left
+            // priority                3                   3                     2                     1
+            //     ne  n  nw             x 0 1               x x x                 x 1 x                 x 1 x                              
+            //     e   <   w             x < x               0 < x                 1 < x                 1 < x
+            //     se  s  sw             x x x               x x x                 x 0 x                 x 1 x
+            //
+            // lastcommand move down
+            // priority                1                   3                     4                     2
+            //     ne  n  nw             x x x               1 x x                 x x x                 x x x
+            //     e   V   w             1 V 1               0 V x                 x V x                 1 V 0
+            //     se  s  sw             x 1 x               x x x                 x 0 x                 x 1 x
+            //
+            // lastcommand move right
+            // priority                2                   1                     3                     4
+            //     ne  n  nw             x 0 x               x 1 x                 x x x                 x x x
+            //     e   >   w             x > 1               x > 1                 x > x                 x > 0
+            //     se  s  sw             x 1 x               x 1 x                 1 0 x                 x x x
+            //
+            //               0  1  2  3  4  5  6  7
+            //compassValue = n,ne, e,se, s,sw, w,nw => 0,1,1,1,1,1,0,0
+            var cVQ = new Queue<Char>(compassValue);
+            if (lastCommand.CommandMove == Command.Move.Left)
             {
-                leftSide = new GridSquare(0, 0, GridSquare.ContentType.Empty);
+                for (int i = 0; i < 2; i++) cVQ.Enqueue(cVQ.Dequeue());
             }
-            if (rightSide == null)
+            if (lastCommand.CommandMove == Command.Move.Down)
             {
-                rightSide = new GridSquare(0, 0, GridSquare.ContentType.Empty);
+                for (int i = 0; i < 4; i++) cVQ.Enqueue(cVQ.Dequeue());
             }
-            if (front == null)
+            if (lastCommand.CommandMove == Command.Move.Right)
             {
-                return new Command(Command.Move.RotateRight, true);
+                for (int i = 0; i < 6; i++) cVQ.Enqueue(cVQ.Dequeue());
             }
 
-            bool turnedLastMove = (lastCommand.CommandMove == Command.Move.RotateLeft || lastCommand.CommandMove == Command.Move.RotateRight);
-
-            if (turnedLastMove && front.Contents == GridSquare.ContentType.Empty) result = forward;
-            if (turnedLastMove && front.Contents != GridSquare.ContentType.Empty) result = new Command(Command.Move.RotateLeft, true);
-            if (!turnedLastMove && rightSide.Contents == GridSquare.ContentType.Empty) result = new Command(Command.Move.RotateRight, true);
-            if (!turnedLastMove && rightSide.Contents != GridSquare.ContentType.Empty && front.Contents == GridSquare.ContentType.Empty) result = forward;
-            if (!turnedLastMove && rightSide.Contents != GridSquare.ContentType.Empty && front.Contents != GridSquare.ContentType.Empty) result = new Command(Command.Move.RotateLeft, true);
-
-            if (result.CommandMove == Command.Move.RotateRight)
+            var cV = new String(cVQ.ToArray());
+            if (cV[2] == '1' && cV[0] == '1' && cV[6] == '1')
             {
-                switch (travelDirection)
-                {
-                    case PlayerWorldState.Facing.Right: travelDirection = PlayerWorldState.Facing.Down; break;
-                    case PlayerWorldState.Facing.Up: travelDirection = PlayerWorldState.Facing.Right; break;
-                    case PlayerWorldState.Facing.Left: travelDirection = PlayerWorldState.Facing.Up; break;
-                    case PlayerWorldState.Facing.Down: travelDirection = PlayerWorldState.Facing.Left; break;
-                }
-                lastCommand = result;
-                result = followRightwall(state);
+                return new Command(Command.Move.Down, true);
             }
-            else if (result.CommandMove == Command.Move.RotateLeft)
+            else if (cV[2] == '0' && cV[0] == '1' && cV[6] == '1')
             {
-                switch (travelDirection)
-                {
-                    case PlayerWorldState.Facing.Right: travelDirection = PlayerWorldState.Facing.Up; break;
-                    case PlayerWorldState.Facing.Up: travelDirection = PlayerWorldState.Facing.Left; break;
-                    case PlayerWorldState.Facing.Left: travelDirection = PlayerWorldState.Facing.Down; break;
-                    case PlayerWorldState.Facing.Down: travelDirection = PlayerWorldState.Facing.Right; break;
-                }
-                lastCommand = result;
-                result = followRightwall(state);
-            } 
-             
-            return result;
-        }
-
-        public GridSquare borderWall(GridSquare g, bool XorY, int vX, int maxX)
-        {
-            GridSquare borderWallSquare = new GridSquare(0, 0, GridSquare.ContentType.Rock);
-            if (vX < 0)
-            {
-                if (XorY)
-                {
-                    return g.X > 0 ? memory.SingleOrDefault(sq => sq.X == g.X + vX && sq.Y == g.Y) : borderWallSquare;
-                }
-                else
-                {
-                    return g.Y > 0 ? memory.SingleOrDefault(sq => sq.X == g.X && sq.Y == g.Y + vX) : borderWallSquare;
-                }
+                return new Command(Command.Move.Left, true);
             }
-            if (vX > 0)
-            {
-                if (XorY)
-                {
-                    return g.X < (maxX - 1) ? memory.SingleOrDefault(sq => sq.X == g.X + vX && sq.Y == g.Y) : borderWallSquare;
-                }
-                else
-                {
-                    return g.Y < (maxX - 1)? memory.SingleOrDefault(sq => sq.X == g.X && sq.Y == g.Y + vX) : borderWallSquare;
-                }
-            }
-            if (XorY)
-            {
-                return memory.SingleOrDefault(sq => sq.X == g.X + vX && sq.Y == g.Y);
+            else if (cV[5] == '1' && cV[6] == '0') {
+                return new Command(Command.Move.Right,true);
             }
             else
             {
-                return memory.SingleOrDefault(sq => sq.X == g.X && sq.Y == g.Y + vX);
+                return new Command(Command.Move.Up, true);
+            }
+        }
+
+        public Command rotateGun360()
+        {
+            commandQueue.Enqueue(new Command(Command.Move.RotateRight, true));
+            commandQueue.Enqueue(new Command(Command.Move.RotateRight, true));
+            commandQueue.Enqueue(new Command(Command.Move.RotateRight, true));
+            return new Command(Command.Move.RotateRight, true);
+        }
+
+        public GridSquare memSoD(int X, int Y)
+        {
+            return memory.SingleOrDefault(sq => sq.X == X && sq.Y == Y);
+        }
+
+        public GridSquare borderWall(GridSquare g, int X, int Y, PlayerWorldState state)
+        {
+            Point max = new Point(state.GridWidthInSquares, state.GridHeightInSquares);
+            
+            GridSquare borderWallSquare = new GridSquare(0, 0, GridSquare.ContentType.Rock);
+            if (X < 0)
+            {
+                if (Y < 0)
+                {
+                    return (g.X > 0 && g.Y > 0) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+                }
+                else if (Y > 0)
+                {
+                    return (g.X > 0 && g.Y < (max.Y - 1)) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+                }
+                else
+                {
+                    return (g.X > 0) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+                }
+            }
+            if (X > 0)
+            {
+                if (Y < 0)
+                {
+                    return (g.X < (max.X - 1) && g.Y > 0) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+                }
+                else if (Y > 0)
+                {
+                    return (g.X < (max.X - 1) && g.Y < (max.Y - 1)) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+                }
+                else
+                {
+                    return (g.X < (max.X - 1)) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+                }
+            }
+            if (Y < 0)
+            {
+                return (g.Y > 0) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+            }
+            else if (Y > 0)
+            {
+                return (g.Y < (max.Y - 1)) ? memSoD(g.X + X, g.Y + Y) : borderWallSquare;
+            }
+            else
+            {
+                return memSoD(g.X + X, g.Y + Y);
             }
         }
         
